@@ -1,0 +1,13 @@
+# The basic
+.DS_Store
+/.venv
+__pycache__
+/data
+/node_modules
+/.vscode
+
+# Screts
+client_secrets.json
+
+# The Dummy video
+dummy_video.mp4
