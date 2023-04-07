@@ -1,0 +1,17 @@
+{
+  "name": "youtube-upload-video",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Before using, get a `client_secrets.json` from your GCP dashboard and put it in root.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "google-auth-library": "^8.7.0",
+    "googleapis": "^114.0.0",
+    "open": "^9.1.0"
+  }
+}

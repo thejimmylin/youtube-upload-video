@@ -7,5 +7,5 @@ __pycache__
 /.vscode
 
 # The Screts
-client_secrets.json
+client_secret.json
 token.json
