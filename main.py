@@ -1,21 +1,42 @@
+import json
+import os
+
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 
-# Set your client secrets file path
-CLIENT_SECRETS_FILE = "client_secrets.json"
 
-# Set your API scope and access token
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
-API_SERVICE_NAME = "youtube"
-API_VERSION = "v3"
+CLIENT_SECRETS_FILE = "client_secrets.json"
+LOCAL_SERVER_PORT = 8080
+SCOPES = [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube.readonly",
+]
 
 
 def get_authenticated_service():
-    flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
-    credentials = flow.run_local_server(port=8080)  # Replace 8080 with the port you chose
-    return build(API_SERVICE_NAME, API_VERSION, credentials=credentials)
+    creds = None
+    token_file = "token.json"
+
+    if os.path.exists(token_file):
+        creds = Credentials.from_authorized_user_file(token_file, SCOPES)
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
+            creds = flow.run_local_server(port=LOCAL_SERVER_PORT, prompt="consent")
+
+        creds_data = json.loads(creds.to_json())
+        creds_data["refresh_token"] = creds.refresh_token
+
+        with open(token_file, "w") as token:
+            json.dump(creds_data, token)
+
+    return build("youtube", "v3", credentials=creds)
 
 
 def upload_video(youtube, video_file, title, description, category, privacy_status):
@@ -36,20 +57,52 @@ def upload_video(youtube, video_file, title, description, category, privacy_stat
     print(f'Uploaded video with ID "{response["id"]}"')
 
 
-def main():
-    video_file = "dummy_video.mp4"  # Path to your dummy video file
-    title = "My Dummy Video"
-    description = "This is a dummy video uploaded using the YouTube Data API and Python."
-    category = "22"  # Category ID for "People & Blogs"
-    privacy_status = "private"  # Video privacy status: 'public', 'private', or 'unlisted'
+def list_videos(youtube):
+    channels_response = (
+        youtube.channels()
+        .list(
+            part="contentDetails",
+            mine=True,
+        )
+        .execute()
+    )
 
-    youtube = get_authenticated_service()
-    try:
-        upload_video(youtube, video_file, title, description, category, privacy_status)
-    except HttpError as error:
-        print(f"An error occurred: {error}")
-        print("Video upload aborted.")
+    if not channels_response["items"]:
+        print("No channel found.")
+        return
+
+    uploaded_videos_playlist_id = channels_response["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
+
+    playlistitems_response = (
+        youtube.playlistItems().list(part="snippet", playlistId=uploaded_videos_playlist_id, maxResults=50).execute()
+    )
+
+    videos = playlistitems_response.get("items", [])
+    if not videos:
+        print("No videos found.")
+        return
+
+    print("Videos:")
+    for video in videos:
+        print(f"{video['snippet']['title']} ({video['snippet']['resourceId']['videoId']})")
+
+
+def upload_a_video():
+    service = get_authenticated_service()
+    upload_video(
+        service,
+        video_file="dummy_video.mp4",
+        title="My Dummy Video",
+        description="This is a dummy video uploaded using the YouTube Data API and Python.",
+        category="22",
+        privacy_status="public",
+    )
+
+
+def list_my_videos():
+    service = get_authenticated_service()
+    list_videos(service)
 
 
 if __name__ == "__main__":
-    main()
+    upload_a_video()

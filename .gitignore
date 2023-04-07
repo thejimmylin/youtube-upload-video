@@ -8,6 +8,7 @@ __pycache__
 
 # Screts
 client_secrets.json
+token.json
 
 # The Dummy video
 dummy_video.mp4
