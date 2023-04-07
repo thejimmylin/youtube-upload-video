@@ -62,7 +62,7 @@ def list_videos(youtube):
         youtube.channels()
         .list(
             part="contentDetails",
-            mine=True,
+            mine=True
         )
         .execute()
     )
@@ -105,4 +105,4 @@ def list_my_videos():
 
 
 if __name__ == "__main__":
-    upload_a_video()
+    list_my_videos()

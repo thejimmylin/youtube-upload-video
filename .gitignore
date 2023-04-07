@@ -6,9 +6,6 @@ __pycache__
 /node_modules
 /.vscode
 
-# Screts
+# The Screts
 client_secrets.json
 token.json
-
-# The Dummy video
-dummy_video.mp4
