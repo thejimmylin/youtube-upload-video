@@ -1,108 +1,121 @@
 import fs from "fs";
 import { OAuth2Client } from "google-auth-library";
 import { google } from "googleapis";
-import { createServer } from "http";
+import http from "http";
 import open from "open";
 import { URL } from "url";
-import { authenticate } from "./auth.js";
 
-// Get youtube service
 const SCOPE = ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube.readonly"];
 const CLIENT_SECRET_FILE = "client_secret.json";
 const TOKEN_FILE = "token.json";
 
+function enableDestroy(server) {
+  const connections = new Map();
+
+  server.on("connection", (conn) => {
+    const key = `${conn.remoteAddress}:${conn.remotePort}`;
+    connections.set(key, conn);
+    conn.on("close", () => {
+      connections.delete(key);
+    });
+  });
+
+  server.destroy = (cb) => {
+    server.close(cb);
+    for (const conn of connections.values()) {
+      conn.destroy();
+    }
+  };
+}
+
 async function getYoutube(clientSecretFile = CLIENT_SECRET_FILE, token_file = TOKEN_FILE) {
-  const oAuth2Client = getOAuth2Client(clientSecretFile);
-  const token = await getCredentials(oAuth2Client, token_file);
-  oAuth2Client.setCredentials(token);
-  // New
-  // const oAuth2ClientNew = authenticate(clientSecretFile, SCOPE);
+  const oAuth2Client = await authenticate(clientSecretFile, token_file, SCOPE);
   return google.youtube({ version: "v3", auth: oAuth2Client });
 }
 
-function getOAuth2Client(clientSecretFile) {
+async function authenticate(clientSecretFile, token_file, scope) {
   const content = fs.readFileSync(clientSecretFile, "utf8");
   const keyFile = JSON.parse(content);
   const keys = keyFile.installed || keyFile.web;
 
-  const { client_id, client_secret, redirect_uris } = keys;
-  return new OAuth2Client(client_id, client_secret, redirect_uris[0]);
-}
+  const redirectUri = new URL(keys.redirect_uris[0]);
+  const client = new OAuth2Client({
+    clientId: keys.client_id,
+    clientSecret: keys.client_secret,
+  });
 
-async function getCredentials(oAuth2Client, token_file) {
   if (fs.existsSync(token_file)) {
     const token = fs.readFileSync(token_file, "utf8");
     const credentials = JSON.parse(token);
-    return credentials;
+    client.setCredentials(credentials);
+    return client;
   } else {
-    const authUrl = oAuth2Client.generateAuthUrl({ access_type: "offline", scope: SCOPE });
-    await open(authUrl);
-    const code = await getCodeFromLocalServer();
-    const credentials = (await oAuth2Client.getToken(code)).tokens;
-    fs.writeFileSync(token_file, JSON.stringify(credentials));
-    return credentials;
+    return new Promise((resolve, reject) => {
+      const server = http.createServer(async (req, res) => {
+        try {
+          const url = new URL(req.url, "http://localhost:3000");
+          const searchParams = url.searchParams;
+          const code = searchParams.get("code");
+          const { tokens } = await client.getToken({ code: code, redirect_uri: redirectUri.toString() });
+          client.setCredentials(tokens);
+          fs.writeFileSync(token_file, JSON.stringify(tokens));
+          resolve(client);
+          res.end("Authentication successful! Please return to the console.");
+        } catch (e) {
+          reject(e);
+        } finally {
+          server.destroy();
+        }
+      });
+
+      server.listen(Number(redirectUri.port), () => {
+        const authorizeUrl = client.generateAuthUrl({
+          redirect_uri: redirectUri.toString(),
+          access_type: "offline",
+          scope,
+        });
+        open(authorizeUrl, { wait: false }).then((cp) => cp.unref());
+      });
+      enableDestroy(server);
+    });
   }
 }
 
-function getCodeFromLocalServer() {
-  return new Promise((resolve, reject) => {
-    const server = createServer(async (req, res) => {
-      if (req.url && req.url.startsWith("/?code=")) {
-        const code = extractCodeFromUrl(req.url, req.headers.host);
-        code ? resolve(code) : reject(new Error("No authorization code found in the URL"));
-        res.statusCode = 200;
-        res.end("You can close this page now.");
-        server.close();
-      }
-    });
-    server.listen(8080);
+// Main
+async function listMyVideos() {
+  const service = await getYoutube();
+  await listVideos(service);
+}
+
+async function listVideos(youtube) {
+  const channels = await getChannels(youtube);
+  const playlistId = channels[0].contentDetails.relatedPlaylists.uploads;
+  const videos = await getPlaylistItems(youtube, playlistId);
+  displayVideos(videos);
+}
+
+async function getChannels(youtube) {
+  const channelsResponse = await youtube.channels.list({
+    part: ["contentDetails"],
+    mine: true,
   });
+  return channelsResponse.data.items;
 }
 
-function extractCodeFromUrl(requestUrl, host) {
-  const url = new URL(requestUrl, `http://${host}`);
-  return url.searchParams.get("code");
+async function getPlaylistItems(youtube, playlistId) {
+  const playlistItemsResponse = await youtube.playlistItems.list({
+    part: ["snippet"],
+    playlistId: playlistId,
+    maxResults: 50,
+  });
+  return playlistItemsResponse.data.items;
 }
 
-// List videos
-// async function listVideos(youtube) {
-//   const channels = await getChannels(youtube);
-//   const playlistId = channels[0].contentDetails.relatedPlaylists.uploads;
-//   const videos = await getPlaylistItems(youtube, playlistId);
-//   displayVideos(videos);
-// }
+function displayVideos(videos) {
+  console.log("Videos:");
+  for (const video of videos) {
+    console.log(`${video.snippet.title} (${video.snippet.resourceId.videoId})`);
+  }
+}
 
-// async function getChannels(youtube) {
-//   const channelsResponse = await youtube.channels.list({
-//     part: ["contentDetails"],
-//     mine: true,
-//   });
-//   return channelsResponse.data.items;
-// }
-
-// async function getPlaylistItems(youtube, playlistId) {
-//   const playlistItemsResponse = await youtube.playlistItems.list({
-//     part: ["snippet"],
-//     playlistId: playlistId,
-//     maxResults: 50,
-//   });
-//   return playlistItemsResponse.data.items;
-// }
-
-// function displayVideos(videos) {
-//   console.log("Videos:");
-//   for (const video of videos) {
-//     console.log(`${video.snippet.title} (${video.snippet.resourceId.videoId})`);
-//   }
-// }
-
-// // Main
-// async function listMyVideos() {
-//   const service = await getYoutube();
-//   await listVideos(service);
-
-// listMyVideos();
-
-authenticate(CLIENT_SECRET_FILE, SCOPE);
-
-// getYoutube();
+listMyVideos();
