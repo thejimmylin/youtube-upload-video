@@ -53,7 +53,7 @@ async function authenticate(clientSecretFile, token_file, scope) {
           const code = searchParams.get("code");
           const { tokens } = await client.getToken({ code: code, redirect_uri: redirectUri.toString() });
           client.setCredentials(tokens);
-          fs.writeFileSync(token_file, JSON.stringify(tokens));
+          fs.writeFileSync(token_file, JSON.stringify(tokens, null, 2));
           resolve(client);
           res.end("Authentication successful! Please return to the console.");
         } catch (e) {
