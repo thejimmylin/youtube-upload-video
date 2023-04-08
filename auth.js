@@ -23,11 +23,11 @@ function enableDestroy(server) {
   };
 }
 
-async function authenticate(options) {
-  const content = fs.readFileSync(options.keyfilePath, "utf8");
+async function authenticate(clientSecretFile, scope) {
+  const content = fs.readFileSync(clientSecretFile, "utf8");
   const keyFile = JSON.parse(content);
   const keys = keyFile.installed || keyFile.web;
-  const redirectUri = new URL(keys.redirect_uris[0] ?? "http://localhost");
+  const redirectUri = new URL(keys.redirect_uris[0]);
   const client = new OAuth2Client({
     clientId: keys.client_id,
     clientSecret: keys.client_secret,
@@ -37,16 +37,9 @@ async function authenticate(options) {
     const server = http.createServer(async (req, res) => {
       try {
         const url = new URL(req.url, "http://localhost:3000");
-        if (url.pathname !== redirectUri.pathname) {
-          res.end("Invalid callback URL");
-          return;
-        }
         const searchParams = url.searchParams;
         const code = searchParams.get("code");
-        const { tokens } = await client.getToken({
-          code: code,
-          redirect_uri: redirectUri.toString(),
-        });
+        const { tokens } = client.getToken({ code: code, redirect_uri: redirectUri.toString() });
         client.credentials = tokens;
         resolve(client);
         res.end("Authentication successful! Please return to the console.");
@@ -61,7 +54,7 @@ async function authenticate(options) {
       const authorizeUrl = client.generateAuthUrl({
         redirect_uri: redirectUri.toString(),
         access_type: "offline",
-        scope: options.scopes,
+        scope,
       });
       open(authorizeUrl, { wait: false }).then((cp) => cp.unref());
     });
@@ -69,7 +62,7 @@ async function authenticate(options) {
   });
 }
 
-authenticate({
-  keyfilePath: "client_secret.json",
-  scopes: ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube.readonly"],
-});
+authenticate("client_secret.json", [
+  "https://www.googleapis.com/auth/youtube.upload",
+  "https://www.googleapis.com/auth/youtube.readonly",
+]);
