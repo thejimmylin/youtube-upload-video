@@ -4,6 +4,7 @@ import { google } from "googleapis";
 import { createServer } from "http";
 import open from "open";
 import { URL } from "url";
+import { authenticate } from "./auth.js";
 
 // Get youtube service
 const SCOPE = ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube.readonly"];
@@ -14,12 +15,17 @@ async function getYoutube(clientSecretFile = CLIENT_SECRET_FILE, token_file = TO
   const oAuth2Client = getOAuth2Client(clientSecretFile);
   const token = await getCredentials(oAuth2Client, token_file);
   oAuth2Client.setCredentials(token);
+  // New
+  // const oAuth2ClientNew = authenticate(clientSecretFile, SCOPE);
   return google.youtube({ version: "v3", auth: oAuth2Client });
 }
 
 function getOAuth2Client(clientSecretFile) {
   const content = fs.readFileSync(clientSecretFile, "utf8");
-  const { client_id, client_secret, redirect_uris } = JSON.parse(content).web;
+  const keyFile = JSON.parse(content);
+  const keys = keyFile.installed || keyFile.web;
+
+  const { client_id, client_secret, redirect_uris } = keys;
   return new OAuth2Client(client_id, client_secret, redirect_uris[0]);
 }
 
@@ -59,41 +65,44 @@ function extractCodeFromUrl(requestUrl, host) {
 }
 
 // List videos
-async function listVideos(youtube) {
-  const channels = await getChannels(youtube);
-  const playlistId = channels[0].contentDetails.relatedPlaylists.uploads;
-  const videos = await getPlaylistItems(youtube, playlistId);
-  displayVideos(videos);
-}
+// async function listVideos(youtube) {
+//   const channels = await getChannels(youtube);
+//   const playlistId = channels[0].contentDetails.relatedPlaylists.uploads;
+//   const videos = await getPlaylistItems(youtube, playlistId);
+//   displayVideos(videos);
+// }
 
-async function getChannels(youtube) {
-  const channelsResponse = await youtube.channels.list({
-    part: ["contentDetails"],
-    mine: true,
-  });
-  return channelsResponse.data.items;
-}
+// async function getChannels(youtube) {
+//   const channelsResponse = await youtube.channels.list({
+//     part: ["contentDetails"],
+//     mine: true,
+//   });
+//   return channelsResponse.data.items;
+// }
 
-async function getPlaylistItems(youtube, playlistId) {
-  const playlistItemsResponse = await youtube.playlistItems.list({
-    part: ["snippet"],
-    playlistId: playlistId,
-    maxResults: 50,
-  });
-  return playlistItemsResponse.data.items;
-}
+// async function getPlaylistItems(youtube, playlistId) {
+//   const playlistItemsResponse = await youtube.playlistItems.list({
+//     part: ["snippet"],
+//     playlistId: playlistId,
+//     maxResults: 50,
+//   });
+//   return playlistItemsResponse.data.items;
+// }
 
-function displayVideos(videos) {
-  console.log("Videos:");
-  for (const video of videos) {
-    console.log(`${video.snippet.title} (${video.snippet.resourceId.videoId})`);
-  }
-}
+// function displayVideos(videos) {
+//   console.log("Videos:");
+//   for (const video of videos) {
+//     console.log(`${video.snippet.title} (${video.snippet.resourceId.videoId})`);
+//   }
+// }
 
-// Main
-async function listMyVideos() {
-  const service = await getYoutube();
-  await listVideos(service);
-}
+// // Main
+// async function listMyVideos() {
+//   const service = await getYoutube();
+//   await listVideos(service);
 
-listMyVideos();
+// listMyVideos();
+
+authenticate(CLIENT_SECRET_FILE, SCOPE);
+
+// getYoutube();

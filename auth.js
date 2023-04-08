@@ -27,6 +27,7 @@ export async function authenticate(clientSecretFile, scope) {
   const content = fs.readFileSync(clientSecretFile, "utf8");
   const keyFile = JSON.parse(content);
   const keys = keyFile.installed || keyFile.web;
+  
   const redirectUri = new URL(keys.redirect_uris[0]);
   const client = new OAuth2Client({
     clientId: keys.client_id,
