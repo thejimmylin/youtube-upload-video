@@ -67,6 +67,7 @@ async function authenticate(clientSecretFile, token_file, scope) {
         const authorizeUrl = client.generateAuthUrl({
           redirect_uri: redirectUri.toString(),
           access_type: "offline",
+          prompt: "consent",
           scope,
         });
         open(authorizeUrl, { wait: false }).then((cp) => cp.unref());
