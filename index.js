@@ -5,7 +5,7 @@ import http from "http";
 import open from "open";
 import { URL } from "url";
 
-const SCOPE = ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube.readonly"];
+const SCOPE = ["https://www.googleapis.com/auth/youtube"];
 const CLIENT_SECRET_FILE = "client_secret.json";
 const TOKEN_FILE = "token.json";
 
@@ -26,11 +26,6 @@ function enableDestroy(server) {
       conn.destroy();
     }
   };
-}
-
-async function getYoutube(clientSecretFile = CLIENT_SECRET_FILE, token_file = TOKEN_FILE) {
-  const oAuth2Client = await authenticate(clientSecretFile, token_file, SCOPE);
-  return google.youtube({ version: "v3", auth: oAuth2Client });
 }
 
 async function authenticate(clientSecretFile, token_file, scope) {
@@ -81,41 +76,7 @@ async function authenticate(clientSecretFile, token_file, scope) {
   }
 }
 
-// Main
-async function listMyVideos() {
-  const service = await getYoutube();
-  await listVideos(service);
+export async function getYoutube(clientSecretFile = CLIENT_SECRET_FILE, token_file = TOKEN_FILE) {
+  const oAuth2Client = await authenticate(clientSecretFile, token_file, SCOPE);
+  return google.youtube({ version: "v3", auth: oAuth2Client });
 }
-
-async function listVideos(youtube) {
-  const channels = await getChannels(youtube);
-  const playlistId = channels[0].contentDetails.relatedPlaylists.uploads;
-  const videos = await getPlaylistItems(youtube, playlistId);
-  displayVideos(videos);
-}
-
-async function getChannels(youtube) {
-  const channelsResponse = await youtube.channels.list({
-    part: ["contentDetails"],
-    mine: true,
-  });
-  return channelsResponse.data.items;
-}
-
-async function getPlaylistItems(youtube, playlistId) {
-  const playlistItemsResponse = await youtube.playlistItems.list({
-    part: ["snippet"],
-    playlistId: playlistId,
-    maxResults: 50,
-  });
-  return playlistItemsResponse.data.items;
-}
-
-function displayVideos(videos) {
-  console.log("Videos:");
-  for (const video of videos) {
-    console.log(`${video.snippet.title} (${video.snippet.resourceId.videoId})`);
-  }
-}
-
-listMyVideos();
