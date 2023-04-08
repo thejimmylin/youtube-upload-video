@@ -23,7 +23,7 @@ function enableDestroy(server) {
   };
 }
 
-async function authenticate(clientSecretFile, scope) {
+export async function authenticate(clientSecretFile, scope) {
   const content = fs.readFileSync(clientSecretFile, "utf8");
   const keyFile = JSON.parse(content);
   const keys = keyFile.installed || keyFile.web;
@@ -40,7 +40,7 @@ async function authenticate(clientSecretFile, scope) {
         const searchParams = url.searchParams;
         const code = searchParams.get("code");
         const { tokens } = client.getToken({ code: code, redirect_uri: redirectUri.toString() });
-        client.credentials = tokens;
+        client.setCredentials(tokens);
         resolve(client);
         res.end("Authentication successful! Please return to the console.");
       } catch (e) {
@@ -61,8 +61,3 @@ async function authenticate(clientSecretFile, scope) {
     enableDestroy(server);
   });
 }
-
-authenticate("client_secret.json", [
-  "https://www.googleapis.com/auth/youtube.upload",
-  "https://www.googleapis.com/auth/youtube.readonly",
-]);
