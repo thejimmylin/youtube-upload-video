@@ -4,7 +4,7 @@ import http from "http";
 import open from "open";
 import { URL } from "url";
 
-export function enableDestroy(server) {
+function enableDestroy(server) {
   const connections = new Map();
 
   server.on("connection", (conn) => {
@@ -23,12 +23,7 @@ export function enableDestroy(server) {
   };
 }
 
-type LocalAuthOptions = {
-  keyfilePath: string;
-  scopes: string[];
-};
-
-async function authenticate(options: LocalAuthOptions): Promise<OAuth2Client> {
+async function authenticate(options) {
   const content = fs.readFileSync(options.keyfilePath, "utf8");
   const keyFile = JSON.parse(content);
   const keys = keyFile.installed || keyFile.web;
@@ -41,7 +36,7 @@ async function authenticate(options: LocalAuthOptions): Promise<OAuth2Client> {
   return new Promise((resolve, reject) => {
     const server = http.createServer(async (req, res) => {
       try {
-        const url = new URL(req.url!, "http://localhost:3000");
+        const url = new URL(req.url, "http://localhost:3000");
         if (url.pathname !== redirectUri.pathname) {
           res.end("Invalid callback URL");
           return;
@@ -49,7 +44,7 @@ async function authenticate(options: LocalAuthOptions): Promise<OAuth2Client> {
         const searchParams = url.searchParams;
         const code = searchParams.get("code");
         const { tokens } = await client.getToken({
-          code: code!,
+          code: code,
           redirect_uri: redirectUri.toString(),
         });
         client.credentials = tokens;
@@ -58,7 +53,7 @@ async function authenticate(options: LocalAuthOptions): Promise<OAuth2Client> {
       } catch (e) {
         reject(e);
       } finally {
-        (server as any).destroy();
+        server.destroy();
       }
     });
 
