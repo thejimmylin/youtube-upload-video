@@ -28,37 +28,37 @@ function enableDestroy(server) {
   };
 }
 
-async function loadClientCredentials(clientSecretFile) {
+function loadClientCredentials(clientSecretFile) {
   const { installed, web } = JSON.parse(fs.readFileSync(clientSecretFile, "utf8"));
   return installed || web;
 }
 
-async function createOAuth2Client({ client_id, client_secret }) {
+function createOAuth2Client({ client_id, client_secret }) {
   return new OAuth2Client({ clientId: client_id, clientSecret: client_secret });
 }
 
-async function loadToken(tokenFile) {
+function loadToken(tokenFile) {
   return JSON.parse(fs.readFileSync(tokenFile, "utf8"));
 }
 
-async function saveToken(tokenFile, token) {
+function saveToken(tokenFile, token) {
   fs.writeFileSync(tokenFile, JSON.stringify(token, null, 2));
 }
 
 async function authenticate(clientSecretFile, tokenFile, scope) {
-  const { client_id, client_secret, redirect_uris } = await loadClientCredentials(clientSecretFile);
-  const oauth2Client = await createOAuth2Client({ client_id, client_secret });
+  const { client_id, client_secret, redirect_uris } = loadClientCredentials(clientSecretFile);
+  const oauth2Client = createOAuth2Client({ client_id, client_secret });
   const redirectUri = new URL(redirect_uris[0]);
 
   if (fs.existsSync(tokenFile)) {
-    const token = await loadToken(tokenFile);
+    const token = loadToken(tokenFile);
     oauth2Client.setCredentials(token);
-    oauth2Client.on("tokens", async ({ refresh_token, access_token, expiry_date }) => {
+    oauth2Client.on("tokens", ({ refresh_token, access_token, expiry_date }) => {
       if (refresh_token) token.refresh_token = refresh_token;
       if (access_token) {
         token.access_token = access_token;
         token.expiry_date = expiry_date;
-        await saveToken(tokenFile, token);
+        saveToken(tokenFile, token);
       }
     });
 
@@ -75,7 +75,7 @@ async function authenticateWithServer(oauth2Client, tokenFile, redirectUri, scop
       const code = url.searchParams.get("code");
       const { tokens } = await oauth2Client.getToken({ code, redirect_uri: redirectUri.toString() });
       oauth2Client.setCredentials(tokens);
-      await saveToken(tokenFile, tokens);
+      saveToken(tokenFile, tokens);
       res.end("Authentication successful! Please return to the console.");
     } catch (e) {
       console.error(e);
@@ -86,14 +86,14 @@ async function authenticateWithServer(oauth2Client, tokenFile, redirectUri, scop
     }
   });
 
-  server.listen(Number(redirectUri.port), async () => {
+  server.listen(Number(redirectUri.port), () => {
     const authUrl = oauth2Client.generateAuthUrl({
       redirect_uri: redirectUri.toString(),
       access_type: "offline",
       prompt: "consent",
       scope,
     });
-    await open(authUrl, { wait: false });
+    open(authUrl);
   });
   enableDestroy(server);
 
