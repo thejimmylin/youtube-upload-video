@@ -2,7 +2,6 @@
 .DS_Store
 /.venv
 __pycache__
-/data
 /node_modules
 /.vscode
 

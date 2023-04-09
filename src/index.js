@@ -43,6 +43,21 @@ async function authenticate(clientSecretFile, token_file, scope) {
     const token = fs.readFileSync(token_file, "utf8");
     const credentials = JSON.parse(token);
     client.setCredentials(credentials);
+
+    // Add the 'tokens' event listener here
+    client.on("tokens", (tokens) => {
+      if (tokens.refresh_token) {
+        // Save the refresh_token to the token.json file, if it's not already there.
+        credentials.refresh_token = tokens.refresh_token;
+      }
+      if (tokens.access_token) {
+        // Update the access_token in the token.json file.
+        credentials.access_token = tokens.access_token;
+        credentials.expiry_date = tokens.expiry_date;
+        fs.writeFileSync(token_file, JSON.stringify(credentials, null, 2));
+      }
+    });
+
     return client;
   } else {
     return new Promise((resolve, reject) => {
