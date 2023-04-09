@@ -30,7 +30,6 @@ function saveToken(tokenFile, token) {
 
 async function authenticate(clientSecretFile, tokenFile, scope) {
   const oauth2Client = getOAuth2Client(clientSecretFile);
-  const redirectUri = new URL(oauth2Client.redirectUri);
 
   if (fs.existsSync(tokenFile)) {
     const token = loadToken(tokenFile);
@@ -47,16 +46,16 @@ async function authenticate(clientSecretFile, tokenFile, scope) {
     return oauth2Client;
   }
 
-  return authenticateWithServer(oauth2Client, tokenFile, redirectUri, scope);
+  return authenticateWithServer(oauth2Client, tokenFile, scope);
 }
 
-async function authenticateWithServer(oauth2Client, tokenFile, redirectUri, scope) {
+async function authenticateWithServer(oauth2Client, tokenFile, scope) {
   const connections = [];
 
   const server = http.createServer(async (req, res) => {
     try {
       const code = url.parse(req.url, true).query.code;
-      const { tokens } = await oauth2Client.getToken({ code, redirect_uri: redirectUri.toString() });
+      const { tokens } = await oauth2Client.getToken(code);
       oauth2Client.setCredentials(tokens);
       saveToken(tokenFile, tokens);
       res.end("Authentication successful! Please return to the console.");
@@ -72,9 +71,9 @@ async function authenticateWithServer(oauth2Client, tokenFile, redirectUri, scop
 
   server.on("connection", (conn) => connections.push(conn));
 
-  server.listen(Number(redirectUri.port), () => {
+  server.listen(8080, () => {
     const authUrl = oauth2Client.generateAuthUrl({
-      redirect_uri: redirectUri.toString(),
+      redirect_uri: oauth2Client.redirectUri,
       access_type: "offline",
       prompt: "consent",
       scope,
