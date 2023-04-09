@@ -9,25 +9,6 @@ const SCOPE = ["https://www.googleapis.com/auth/youtube"];
 const CLIENT_SECRET_FILE = "data/client_secret.json";
 const TOKEN_FILE = "data/token.json";
 
-function enableDestroy(server) {
-  const connections = new Map();
-
-  server.on("connection", (conn) => {
-    const key = `${conn.remoteAddress}:${conn.remotePort}`;
-    connections.set(key, conn);
-    conn.on("close", () => {
-      connections.delete(key);
-    });
-  });
-
-  server.destroy = (cb) => {
-    server.close(cb);
-    for (const conn of connections.values()) {
-      conn.destroy();
-    }
-  };
-}
-
 function loadClientCredentials(clientSecretFile) {
   const { installed, web } = JSON.parse(fs.readFileSync(clientSecretFile, "utf8"));
   return installed || web;
@@ -69,6 +50,8 @@ async function authenticate(clientSecretFile, tokenFile, scope) {
 }
 
 async function authenticateWithServer(oauth2Client, tokenFile, redirectUri, scope) {
+  const connections = [];
+
   const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url, "http://localhost:3000");
@@ -82,9 +65,12 @@ async function authenticateWithServer(oauth2Client, tokenFile, redirectUri, scop
       res.statusCode = 500;
       res.end("Authentication failed");
     } finally {
-      server.destroy();
+      server.close();
+      connections.forEach((conn) => conn.destroy());
     }
   });
+
+  server.on("connection", (conn) => connections.push(conn));
 
   server.listen(Number(redirectUri.port), () => {
     const authUrl = oauth2Client.generateAuthUrl({
@@ -95,7 +81,6 @@ async function authenticateWithServer(oauth2Client, tokenFile, redirectUri, scop
     });
     open(authUrl);
   });
-  enableDestroy(server);
 
   return new Promise((resolve) => {
     server.on("close", () => {
