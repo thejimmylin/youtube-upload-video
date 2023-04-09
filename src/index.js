@@ -3,7 +3,7 @@ import { OAuth2Client } from "google-auth-library";
 import { google } from "googleapis";
 import http from "http";
 import open from "open";
-import { URL } from "url";
+import url from "url";
 
 const SCOPE = ["https://www.googleapis.com/auth/youtube"];
 const CLIENT_SECRET_FILE = "data/client_secret.json";
@@ -55,8 +55,7 @@ async function authenticateWithServer(oauth2Client, tokenFile, redirectUri, scop
 
   const server = http.createServer(async (req, res) => {
     try {
-      const url = new URL(req.url, "http://localhost:3000");
-      const code = url.searchParams.get("code");
+      const code = url.parse(req.url, true).query.code;
       const { tokens } = await oauth2Client.getToken({ code, redirect_uri: redirectUri.toString() });
       oauth2Client.setCredentials(tokens);
       saveToken(tokenFile, tokens);
