@@ -9,27 +9,28 @@ const SCOPE = ["https://www.googleapis.com/auth/youtube"];
 const CLIENT_SECRET_FILE = "data/client_secret.json";
 const TOKEN_FILE = "data/token.json";
 
-function loadClientCredentials(clientSecretFile) {
-  const { installed, web } = JSON.parse(fs.readFileSync(clientSecretFile, "utf8"));
-  return installed || web;
-}
-
-function createOAuth2Client({ client_id, client_secret }) {
-  return new OAuth2Client({ clientId: client_id, clientSecret: client_secret });
+function getOAuth2Client(clientSecretFile) {
+  const content = fs.readFileSync(clientSecretFile, "utf8");
+  const credentials = JSON.parse(content);
+  const { client_secret, client_id, redirect_uris } = credentials.installed || credentials.web;
+  const oAuth2Client = new OAuth2Client(client_id, client_secret, redirect_uris[0]);
+  return oAuth2Client;
 }
 
 function loadToken(tokenFile) {
-  return JSON.parse(fs.readFileSync(tokenFile, "utf8"));
+  const content = fs.readFileSync(tokenFile, "utf8");
+  const token = JSON.parse(content);
+  return token;
 }
 
 function saveToken(tokenFile, token) {
-  fs.writeFileSync(tokenFile, JSON.stringify(token, null, 2));
+  const content = JSON.stringify(token, null, 2);
+  fs.writeFileSync(tokenFile, content);
 }
 
 async function authenticate(clientSecretFile, tokenFile, scope) {
-  const { client_id, client_secret, redirect_uris } = loadClientCredentials(clientSecretFile);
-  const oauth2Client = createOAuth2Client({ client_id, client_secret });
-  const redirectUri = new URL(redirect_uris[0]);
+  const oauth2Client = getOAuth2Client(clientSecretFile);
+  const redirectUri = new URL(oauth2Client.redirectUri);
 
   if (fs.existsSync(tokenFile)) {
     const token = loadToken(tokenFile);
