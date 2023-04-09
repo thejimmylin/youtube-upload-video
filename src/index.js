@@ -28,68 +28,80 @@ function enableDestroy(server) {
   };
 }
 
-async function authenticate(clientSecretFile, token_file, scope) {
-  const content = fs.readFileSync(clientSecretFile, "utf8");
-  const keyFile = JSON.parse(content);
-  const keys = keyFile.installed || keyFile.web;
+async function loadClientCredentials(clientSecretFile) {
+  const { installed, web } = JSON.parse(fs.readFileSync(clientSecretFile, "utf8"));
+  return installed || web;
+}
 
-  const redirectUri = new URL(keys.redirect_uris[0]);
-  const client = new OAuth2Client({
-    clientId: keys.client_id,
-    clientSecret: keys.client_secret,
+async function createOAuth2Client({ client_id, client_secret }) {
+  return new OAuth2Client({ clientId: client_id, clientSecret: client_secret });
+}
+
+async function loadToken(tokenFile) {
+  return JSON.parse(fs.readFileSync(tokenFile, "utf8"));
+}
+
+async function saveToken(tokenFile, token) {
+  fs.writeFileSync(tokenFile, JSON.stringify(token, null, 2));
+}
+
+async function authenticate(clientSecretFile, tokenFile, scope) {
+  const { client_id, client_secret, redirect_uris } = await loadClientCredentials(clientSecretFile);
+  const oauth2Client = await createOAuth2Client({ client_id, client_secret });
+  const redirectUri = new URL(redirect_uris[0]);
+
+  if (fs.existsSync(tokenFile)) {
+    const token = await loadToken(tokenFile);
+    oauth2Client.setCredentials(token);
+    oauth2Client.on("tokens", async ({ refresh_token, access_token, expiry_date }) => {
+      if (refresh_token) token.refresh_token = refresh_token;
+      if (access_token) {
+        token.access_token = access_token;
+        token.expiry_date = expiry_date;
+        await saveToken(tokenFile, token);
+      }
+    });
+
+    return oauth2Client;
+  }
+
+  return authenticateWithServer(oauth2Client, tokenFile, redirectUri, scope);
+}
+
+async function authenticateWithServer(oauth2Client, tokenFile, redirectUri, scope) {
+  const server = http.createServer(async (req, res) => {
+    try {
+      const url = new URL(req.url, "http://localhost:3000");
+      const code = url.searchParams.get("code");
+      const { tokens } = await oauth2Client.getToken({ code, redirect_uri: redirectUri.toString() });
+      oauth2Client.setCredentials(tokens);
+      await saveToken(tokenFile, tokens);
+      res.end("Authentication successful! Please return to the console.");
+    } catch (e) {
+      console.error(e);
+      res.statusCode = 500;
+      res.end("Authentication failed");
+    } finally {
+      server.destroy();
+    }
   });
 
-  if (fs.existsSync(token_file)) {
-    const token = fs.readFileSync(token_file, "utf8");
-    const credentials = JSON.parse(token);
-    client.setCredentials(credentials);
-
-    // Add the 'tokens' event listener here
-    client.on("tokens", (tokens) => {
-      if (tokens.refresh_token) {
-        // Save the refresh_token to the token.json file, if it's not already there.
-        credentials.refresh_token = tokens.refresh_token;
-      }
-      if (tokens.access_token) {
-        // Update the access_token in the token.json file.
-        credentials.access_token = tokens.access_token;
-        credentials.expiry_date = tokens.expiry_date;
-        fs.writeFileSync(token_file, JSON.stringify(credentials, null, 2));
-      }
+  server.listen(Number(redirectUri.port), async () => {
+    const authUrl = oauth2Client.generateAuthUrl({
+      redirect_uri: redirectUri.toString(),
+      access_type: "offline",
+      prompt: "consent",
+      scope,
     });
+    await open(authUrl, { wait: false });
+  });
+  enableDestroy(server);
 
-    return client;
-  } else {
-    return new Promise((resolve, reject) => {
-      const server = http.createServer(async (req, res) => {
-        try {
-          const url = new URL(req.url, "http://localhost:3000");
-          const searchParams = url.searchParams;
-          const code = searchParams.get("code");
-          const { tokens } = await client.getToken({ code: code, redirect_uri: redirectUri.toString() });
-          client.setCredentials(tokens);
-          fs.writeFileSync(token_file, JSON.stringify(tokens, null, 2));
-          resolve(client);
-          res.end("Authentication successful! Please return to the console.");
-        } catch (e) {
-          reject(e);
-        } finally {
-          server.destroy();
-        }
-      });
-
-      server.listen(Number(redirectUri.port), () => {
-        const authorizeUrl = client.generateAuthUrl({
-          redirect_uri: redirectUri.toString(),
-          access_type: "offline",
-          prompt: "consent",
-          scope,
-        });
-        open(authorizeUrl, { wait: false }).then((cp) => cp.unref());
-      });
-      enableDestroy(server);
+  return new Promise((resolve) => {
+    server.on("close", () => {
+      resolve(oauth2Client);
     });
-  }
+  });
 }
 
 export async function getYoutube(clientSecretFile = CLIENT_SECRET_FILE, token_file = TOKEN_FILE) {
