@@ -71,13 +71,8 @@ async function authenticateWithServer(oauth2Client, tokenFile, scope) {
 
   server.on("connection", (conn) => connections.push(conn));
 
-  server.listen(8080, () => {
-    const authUrl = oauth2Client.generateAuthUrl({
-      redirect_uri: oauth2Client.redirectUri,
-      access_type: "offline",
-      prompt: "consent",
-      scope,
-    });
+  server.listen(url.parse(oauth2Client.redirectUri).port, () => {
+    const authUrl = oauth2Client.generateAuthUrl({ access_type: "offline", prompt: "consent", scope });
     open(authUrl);
   });
 
