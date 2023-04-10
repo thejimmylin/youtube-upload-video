@@ -15,12 +15,8 @@ function writeJson(path, obj) {
   fs.writeFileSync(path, content);
 }
 
-function touchJson(path) {
-  if (!fs.existsSync(path)) writeJson(path, {});
-}
-
 function updateJson(path, newObj) {
-  touchJson(path);
+  if (!fs.existsSync(path)) writeJson(path, {});
   const obj = readJson(path);
   writeJson(path, { ...obj, ...newObj });
 }
