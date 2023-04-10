@@ -5,66 +5,49 @@ import http from "http";
 import open from "open";
 import url from "url";
 
+function readJson(path) {
+  const content = fs.readFileSync(path, "utf8");
+  return JSON.parse(content);
+}
+
+function writeJson(path, obj) {
+  const content = JSON.stringify(obj, null, 2);
+  fs.writeFileSync(path, content);
+}
+
 function getOAuth2Client(clientSecretFile) {
-  const content = fs.readFileSync(clientSecretFile, "utf8");
-  const obj = JSON.parse(content);
+  const obj = readJson(clientSecretFile)
   const { client_id, client_secret, redirect_uris } = obj.installed || obj.web;
   return new OAuth2Client(client_id, client_secret, redirect_uris[0]);
 }
 
-function loadToken(tokenFile) {
-  const content = fs.readFileSync(tokenFile, "utf8");
-  const token = JSON.parse(content);
-  return token;
-}
-
-function saveToken(tokenFile, token) {
-  const content = JSON.stringify(token, null, 2);
-  fs.writeFileSync(tokenFile, content);
-}
-
 async function requestToken(oAuth2Client, tokenFile, scope) {
+  let token;
   const connections = [];
-
   const server = http.createServer(async (req, res) => {
-    try {
-      const code = url.parse(req.url, true).query.code;
-      const response = await oAuth2Client.getToken(code);
-      const token = response.tokens;
-      oAuth2Client.setCredentials(token);
-      saveToken(tokenFile, token);
-      res.end("Authentication successful!");
-    } catch (e) {
-      res.end("Authentication failed");
-    } finally {
-      server.close();
-      connections.forEach((conn) => conn.destroy());
-    }
+    const code = url.parse(req.url, true).query.code;
+    const response = await oAuth2Client.getToken(code);
+    token = response.tokens;
+    writeJson(tokenFile, token);
+    res.end("Authentication successful!");
+    server.close();
+    connections.forEach((conn) => conn.destroy());
   });
-
   server.on("connection", (conn) => connections.push(conn));
-
-  server.listen(url.parse(oAuth2Client.redirectUri).port, () => {
+  server.listen(new URL(oAuth2Client.redirectUri).port, () => {
     const authUrl = oAuth2Client.generateAuthUrl({ access_type: "offline", prompt: "consent", scope });
     open(authUrl);
   });
-
-  return new Promise((resolve) => {
-    server.on("close", () => {
-      resolve(oAuth2Client);
-    });
-  });
+  await new Promise((resolve) => server.on("close", resolve));
+  return token;
 }
 
 async function authenticate(clientSecretFile, tokenFile, scope) {
   const oAuth2Client = getOAuth2Client(clientSecretFile);
-  if (fs.existsSync(tokenFile)) {
-    const token = loadToken(tokenFile);
-    oAuth2Client.setCredentials(token);
-    oAuth2Client.on("tokens", (newToken) => saveToken(tokenFile, { ...token, ...newToken }));
-    return oAuth2Client;
-  }
-  return await requestToken(oAuth2Client, tokenFile, scope);
+  const token = fs.existsSync(tokenFile) ? readJson(tokenFile) : await requestToken(oAuth2Client, tokenFile, scope);
+  oAuth2Client.setCredentials(token);
+  oAuth2Client.on("tokens", (newToken) => writeJson(tokenFile, { ...token, ...newToken }));
+  return oAuth2Client;
 }
 
 export async function getYoutube(
