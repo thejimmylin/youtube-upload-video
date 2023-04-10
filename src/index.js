@@ -1,7 +1,7 @@
 import fs from "fs";
 import { OAuth2Client } from "google-auth-library";
 import { google } from "googleapis";
-import http from "http";
+import http, { request } from "http";
 import open from "open";
 import url from "url";
 
@@ -23,18 +23,7 @@ function saveToken(tokenFile, token) {
   fs.writeFileSync(tokenFile, content);
 }
 
-async function authenticate(clientSecretFile, tokenFile, scope) {
-  const oAuth2Client = getOAuth2Client(clientSecretFile);
-  if (fs.existsSync(tokenFile)) {
-    const token = loadToken(tokenFile);
-    oAuth2Client.setCredentials(token);
-    oAuth2Client.on("tokens", (newToken) => saveToken(tokenFile, { ...token, ...newToken }));
-    return oAuth2Client;
-  }
-  return authenticateWithServer(oAuth2Client, tokenFile, scope);
-}
-
-async function authenticateWithServer(oAuth2Client, tokenFile, scope) {
+async function requestToken(oAuth2Client, tokenFile, scope) {
   const connections = [];
 
   const server = http.createServer(async (req, res) => {
@@ -65,6 +54,17 @@ async function authenticateWithServer(oAuth2Client, tokenFile, scope) {
       resolve(oAuth2Client);
     });
   });
+}
+
+async function authenticate(clientSecretFile, tokenFile, scope) {
+  const oAuth2Client = getOAuth2Client(clientSecretFile);
+  if (fs.existsSync(tokenFile)) {
+    const token = loadToken(tokenFile);
+    oAuth2Client.setCredentials(token);
+    oAuth2Client.on("tokens", (newToken) => saveToken(tokenFile, { ...token, ...newToken }));
+    return oAuth2Client;
+  }
+  return await requestToken(oAuth2Client, tokenFile, scope);
 }
 
 export async function getYoutube(
