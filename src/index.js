@@ -1,7 +1,7 @@
 import fs from "fs";
 import { OAuth2Client } from "google-auth-library";
 import { google } from "googleapis";
-import http, { request } from "http";
+import http from "http";
 import open from "open";
 import url from "url";
 
