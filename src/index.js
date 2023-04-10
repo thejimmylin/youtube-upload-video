@@ -15,20 +15,29 @@ function writeJson(path, obj) {
   fs.writeFileSync(path, content);
 }
 
+function touchJson(path) {
+  if (!fs.existsSync(path)) writeJson(path, {});
+}
+
+function updateJson(path, newObj) {
+  touchJson(path);
+  const obj = readJson(path);
+  writeJson(path, { ...obj, ...newObj });
+}
+
 function getOAuth2Client(clientSecretFile) {
-  const obj = readJson(clientSecretFile)
+  const obj = readJson(clientSecretFile);
   const { client_id, client_secret, redirect_uris } = obj.installed || obj.web;
   return new OAuth2Client(client_id, client_secret, redirect_uris[0]);
 }
 
-async function requestToken(oAuth2Client, tokenFile, scope) {
+async function requestToken(oAuth2Client, scope) {
   let token;
   const connections = [];
   const server = http.createServer(async (req, res) => {
     const code = url.parse(req.url, true).query.code;
     const response = await oAuth2Client.getToken(code);
     token = response.tokens;
-    writeJson(tokenFile, token);
     res.end("Authentication successful!");
     server.close();
     connections.forEach((conn) => conn.destroy());
@@ -42,19 +51,14 @@ async function requestToken(oAuth2Client, tokenFile, scope) {
   return token;
 }
 
-async function authenticate(clientSecretFile, tokenFile, scope) {
-  const oAuth2Client = getOAuth2Client(clientSecretFile);
-  const token = fs.existsSync(tokenFile) ? readJson(tokenFile) : await requestToken(oAuth2Client, tokenFile, scope);
-  oAuth2Client.setCredentials(token);
-  oAuth2Client.on("tokens", (newToken) => writeJson(tokenFile, { ...token, ...newToken }));
-  return oAuth2Client;
-}
-
 export async function getYoutube(
   clientSecretFile = "data/client_secret.json",
   tokenFile = "data/token.json",
   scope = ["https://www.googleapis.com/auth/youtube"]
 ) {
-  const oAuth2Client = await authenticate(clientSecretFile, tokenFile, scope);
+  const oAuth2Client = getOAuth2Client(clientSecretFile);
+  oAuth2Client.on("tokens", (newToken) => updateJson(tokenFile, newToken));
+  const token = fs.existsSync(tokenFile) ? readJson(tokenFile) : await requestToken(oAuth2Client, scope);
+  oAuth2Client.setCredentials(token);
   return google.youtube({ version: "v3", auth: oAuth2Client });
 }
