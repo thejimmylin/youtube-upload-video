@@ -5,14 +5,10 @@ import http from "http";
 import open from "open";
 import url from "url";
 
-const SCOPE = ["https://www.googleapis.com/auth/youtube"];
-const CLIENT_SECRET_FILE = "data/client_secret.json";
-const TOKEN_FILE = "data/token.json";
-
 function getOAuth2Client(clientSecretFile) {
   const content = fs.readFileSync(clientSecretFile, "utf8");
-  const credentials = JSON.parse(content);
-  const { client_secret, client_id, redirect_uris } = credentials.installed || credentials.web;
+  const obj = JSON.parse(content);
+  const { client_id, client_secret, redirect_uris } = obj.installed || obj.web;
   return new OAuth2Client(client_id, client_secret, redirect_uris[0]);
 }
 
@@ -71,7 +67,11 @@ async function authenticateWithServer(oAuth2Client, tokenFile, scope) {
   });
 }
 
-export async function getYoutube(clientSecretFile = CLIENT_SECRET_FILE, token_file = TOKEN_FILE) {
-  const oAuth2Client = await authenticate(clientSecretFile, token_file, SCOPE);
+export async function getYoutube(
+  clientSecretFile = "data/client_secret.json",
+  tokenFile = "data/token.json",
+  scope = ["https://www.googleapis.com/auth/youtube"]
+) {
+  const oAuth2Client = await authenticate(clientSecretFile, tokenFile, scope);
   return google.youtube({ version: "v3", auth: oAuth2Client });
 }
