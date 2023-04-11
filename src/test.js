@@ -6,7 +6,7 @@ import { getYoutube } from "./index.js";
 
 // It's expensive to test so don't always test it.
 const TEST_UPLOAD_VIDEO = false;
-const VIDEO_FILE = "data/dummy_video.mp4";
+const VIDEO_FILE = "data/video.mp4";
 
 // Helpers
 async function getChannelDetails(youtube) {
@@ -25,12 +25,13 @@ async function getChannelDetails(youtube) {
 async function uploadVideo(youtube, videoFilePath) {
   const videoMetadata = {
     snippet: {
-      title: "Test Video",
-      description: "This is a test video uploaded by the test.js script.",
+      title: "Half of unmarried people under 30 in Japan do not want kids",
+      description:
+        "https://www.reddit.com/r/worldnews/comments/12hc9v1/half_of_unmarried_people_under_30_in_japan_do_not/",
       categoryId: "22", // "People & Blogs" category
     },
     status: {
-      privacyStatus: "unlisted", // Set the video to 'unlisted' to avoid public visibility
+      privacyStatus: "public", // Set the video to 'unlisted' to avoid public visibility
     },
   };
 
