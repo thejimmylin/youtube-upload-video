@@ -15,10 +15,9 @@ function writeJson(path, obj) {
   fs.writeFileSync(path, content);
 }
 
-function updateJson(path, newObj) {
-  if (!fs.existsSync(path)) writeJson(path, {});
-  const obj = readJson(path);
-  writeJson(path, { ...obj, ...newObj });
+function updateJson(path, obj) {
+  const prevObj = fs.existsSync(path) ? readJson(path) : {};
+  writeJson(path, { ...prevObj, ...obj });
 }
 
 function getOAuth2Client(clientSecretFile) {
